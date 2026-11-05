@@ -117,3 +117,5 @@ void In_Game_Display(void){ // Delia graphics
     // TODO: Show history of last five buttons
     // Graphics will be more than this and likely multiple methods
 }
+
+// add more graphics method here
