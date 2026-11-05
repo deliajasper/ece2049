@@ -52,20 +52,20 @@ static State_t currentState = IDLE;
 void Simon_State_Machine(void){
 
     switch(currentState){
-        case IDLE:
+        case IDLE: // Isaac
             // Wait for user input to start the game
             // TODO: Display welcome screen
             // TODO: Transition to COUNTDOWN when user starts the game by pressing select
             break;
 
-        case COUNTDOWN:
+        case COUNTDOWN: // Isaac
             // Perform countdown logic here
             // TODO: Display countdown on the screen
             // TODO: Transition to PLAY_SEQUENCE after countdown
             currentState = PLAY_SEQUENCE;
             break;
 
-        case PLAY_SEQUENCE:
+        case PLAY_SEQUENCE: // Tran
             // Play the sequence of notes
             // TODO: Implement method(s) to play the sequence on the LEDs, one LED at a time, 
             // and play a unique note on the buzzer for each LED
@@ -74,7 +74,7 @@ void Simon_State_Machine(void){
             currentState = PLAYER_INPUT;
             break;
 
-        case PLAYER_INPUT:
+        case PLAYER_INPUT: // Tran
             // Wait for player input and check against the sequence
             // TODO: Implement method(s) to read player input from the buttons and compare it to the sequence
             // TODO: Transition back to PLAY_SEQUENCE if the player input is correct AND the game is not over
@@ -83,14 +83,14 @@ void Simon_State_Machine(void){
             // TODO: Implement In_Game_Display() to show the current sequence on the screen
             break;
 
-        case GAME_WIN:
+        case GAME_WIN: // Isaac
             // Handle game win logic
             // TODO: Add win message to screen
             // TODO: Transition to IDLE after length of time has passed
             currentState = IDLE;
             break;
 
-        case GAME_LOSE:
+        case GAME_LOSE: // Isaac
             // Handle game lose logic
             // TODO: Add lose message to screen with "annoying" buzzer sound
             // TODO: Transition to IDLE after length of time has passed
@@ -104,14 +104,16 @@ void Simon_State_Machine(void){
 
 }
 
+// Tran
 // TODO: Implement memory data structure to keep track of the full history of button presses
 // TODO: Implement random number generator to generate the sequence of button presses for the game
 // TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
 
-void In_Game_Display(void){
-    // TODO: IMplement display logic for the game, including showing the current sequence, 
+void In_Game_Display(void){ // Delia graphics
+    // TODO: Implement display logic for the game, including showing the current sequence, 
     // player input, current level, and game status (win/lose)
     // TODO: Each buttone should have its own element showing button state and should be "visually appealing"
     // TODO: Implement a success message when the player enters the sequence corrent for one level
     // TODO: Show history of last five buttons
+    // Graphics will be more than this and likely multiple methods
 }
