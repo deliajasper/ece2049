@@ -52,7 +52,6 @@ static bool levelSuccess = false; // Track if the player has successfully comple
 static bool gameLost = false; // Track if the player has lost the game
 static bool gameWon = false; // Track if the player has won the game
 
-static uint8_t currentLevel = 0; // Current level of the game
 // TODO: assign order of colors
 static bool buttonPressed[4] = {false, false, false, false}; // Track button presses for each color  
 static bool updateDisplay = false; // Flag to indicate if the display needs to be updated
@@ -141,6 +140,9 @@ void lightPad(uint8_t color, bool on) {
             LED_PORTS[color]->ODR &= ~PIN_BIT(LED_PINS[color]); //set bit to LOW, so led off
         }
     }
+    // update array for graphics when button turns on
+    buttonPressed[color]= on;
+    updateDisplay = true;
 }
 
 uint8_t readButton() {
@@ -176,6 +178,92 @@ void Game_GPIO_Init() {
     }
 }
 
+// Tran
+// TODO: Implement memory data structure to keep track of the full history of button presses
+// TODO: Implement random number generator to generate the sequence of button presses for the game
+// TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
+
+// Constants for GUI, tune when display is on
+static const uint16_t brightColors[4] = {0x07E0, 0xF800, 0xFFE0, 0x001F};
+static const uint16_t dimColors[4] = {0x0200, 0x5000, 0x5280, 0x000A};
+static const int16_t xPos[4] = {20, 86, 20, 86};
+static const int16_t yPos[4] = {22, 22, 66, 66};
+
+void In_Game_Display(void){ 
+    // Avoid redrawing the display if nothing needs to be updated
+    if(!updateDisplay){
+        return;
+    }
+    updateDisplay = false; // Reset the flag after updating the display
+
+    Display_setTextSize(1, 1);
+    Display_setTextColor(ST7735_BLACK);
+
+    Display_setCursor(8, 5);
+    Display_print(levelString);
+
+    if (currentState == IDLE) {
+        Display_setCursor(24, 35);
+        Display_print("SIMON GAME");
+        Display_setTextSize(1, 1);
+        Display_setCursor(24, 76);
+        Display_print("Press SELECT to start");
+        return;
+    }
+    if (currentState == COUNTDOWN) {
+        char number[8]; // char to hold the countdown number as a string
+        // calculate how much time has passed
+        // print the number
+        Display_setCursor(24, 48);
+        Display_print("Get ready to start in:");
+        Display_setCursor(24, 64);
+        //Display_print(number);
+        return;
+    }
+    if (currentState == GAME_WIN) {
+        Display_setCursor(32, 48);
+        Display_print("YOU WIN!", "All 32 levels!", ST7735_GREEN);
+        return;
+    }
+    if (currentState == GAME_LOSE) {
+        Display_setCursor(32, 48);
+        Display_print("GAME OVER", "Try again!", ST7735_RED);
+        return;
+    }
+
+    Display_fillScreen(ST7735_WHITE);
+    char levelString[32];
+    snprintf(levelString, sizeof(levelString), "Level: %u / %u", CURRENT_LEVEL, MAX_SEQ);
+    Display_setTextColor(ST7735_BLACK);
+    Display_setTextSize(1, 1);
+    Display_setCursor(8, 5);
+    Display_print(levelString);
+
+    if (levelSuccess) {
+        Display_setCursor(32, 48);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("GOOD JOB!");
+    }
+    
+    // Drawing buttons, looping to make it easy
+    for(uint8_t index = 0; index < 4; index++){
+        if(buttonPressed[index]){
+            Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, brightColors[index]);
+        } else {
+            Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, dimColors[index]);
+        }
+    }
+    
+    Display_setTextColor(ST7735_BLACK);
+    Display_setCursor(8, 115);
+    Display_print("Last 5:");
+
+
+    for (uint8_t i = 0; i < 5; i++) {
+        Display_fillCircle( 66 + i * 17, 118, 5,brightColors[USER_SEQUENCE[i]]);
+    }
+    
+}
 
 void Simon_State_Machine(void){
     if (!gpioReady) {
@@ -316,108 +404,5 @@ void Simon_State_Machine(void){
             currentState = IDLE;
             break;
     }
-
-}
-
-// Tran
-// TODO: Implement memory data structure to keep track of the full history of button presses
-// TODO: Implement random number generator to generate the sequence of button presses for the game
-// TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
-
-// Constants for GUI, tune when display is on
-static const uint16_t brightColors[4] = {0x07E0, 0xF800, 0xFFE0, 0x001F};
-static const uint16_t dimColors[4] = {0x0200, 0x5000, 0x5280, 0x000A};
-static const int16_t xPos[4] = {8, 66, 8, 66};
-static const int16_t yPos[4] = {22, 22, 66, 66};
-
-void In_Game_Display(void){ // Delia graphics
-    // TODO: Show history of last five buttons
-
-    // Avoid redrawing the display if nothing needs to be updated
-    if(!updateDisplay){
-        return;
-    }
-    updateDisplay = false; // Reset the flag after updating the display
-
-    Display_setTextSize(1, 1);
-    Display_setTextColor(ST7735_BLACK);
-
-    snprintf(levelString, sizeof(levelString), "Level: %d", currentLevel);
-
-    Display_setCursor(8, 5);
-    Display_print(levelString);
-
-    if (currentState == IDLE) {
-        Display_setCursor(12, 35);
-        Display_print("SIMON GAME");
-        Display_setTextSize(1, 1);
-        Display_setCursor(12, 76);
-        Display_print("Press SELECT to start");
-        return;
-    }
-    if (currentState == COUNTDOWN) {
-        char number[8]; // char to hold the countdown number as a string
-        // calculate how much time has passed
-        // print the number
-        Display_setCursor(12, 35);
-        Display_print("Get ready to start in:");
-        Display_setCursor(12, 55);
-        //Display_print(number);
-        return;
-    }
-    if (currentState == GAME_WIN) {
-        DrawMessage("YOU WIN!", "All 32 levels!", ST7735_GREEN);
-        return;
-    }
-    if (currentState == GAME_LOSE) {
-        DrawMessage("GAME OVER", "Try again!", ST7735_RED);
-        return;
-    }
-
-    Display_setTextSize(1, 1);
-    Display_setTextColor(ST7735_BLACK);
-    Display_fillScreen(ST7735_WHITE);
-    
-    char label[32];
-    snprintf(levelString, sizeof(levelString), "Level: %u / %u", currentLevel, MAX_LEVEL);
-    Display_setTextColor(ST7735_WHITE);
-    Display_setTextSize(1, 1);
-    Display_setCursor(8, 5);
-    Display_print(levelString);
-
-    if (levelSuccess) {
-        Display_setCursor(100, 5);
-        Display_setTextColor(ST7735_GREEN);
-        Display_print("GOOD JOB!");
-    }
-    
-
-    // Drawing buttons, looping to make it easy
-    for(uint8_t index = 0; index < 4; index++){
-        if(buttonPressed[index]){
-            Display_fillRoundRect(xPos[index], yPos[index], 50, 50, 5, brightColors[index]);
-        } else {
-            Display_fillRoundRect(xPos[index], yPos[index], 50, 50, 5, dimColors[index]);
-        }
-    }
-    // Add history of last five buttons pressed to display after knowing what the data structure looks like
-    
-}
-
-// display game over message
-void GameOverDisplay(void){
-    Display_setTextSize(4, 4);
-    Display_setTextColor(ST7735_RED);
-
-    Display_setCursor(8, 5);
-    Display_print("Game Over!");
-}
-
-// display game win message
-void GameWinDisplay(void){
-    Display_setTextSize(4, 4);
-    Display_setTextColor(ST7735_GREEN);
-
-    Display_setCursor(8, 5);
-    Display_print("You Win!");
+    In_Game_Display();
 }
