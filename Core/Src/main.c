@@ -210,7 +210,7 @@ int main(void)
   buzzerSetNote(&buzzer1, chromaticScale[currNoteNum], currOctave);
   buzzerDisable(&buzzer1);
 
-  uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
+  //uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
 
   while (1)
   {

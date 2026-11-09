@@ -12,6 +12,10 @@
 
 // later: buttons[currBtn] = {LED color, button info, note frequency, etc}
 
+// display:
+// left port middle row -> 9th pin from the right in the top row of CN10
+// right port middle row -> 2nd pin from the right in the top row of CN7
+
 // PORT: GPIOA, GPIOB, GPIOC
 // PIN: PIN NUMBER (0-15)
 // LEDS: PC10, PC 12, PC14, PC2
@@ -119,13 +123,13 @@ void play_note(uint8_t color_index) {
         return;
     } else {
         //valid colors
-        buzzerSetNote(&buzzer, NOTE_ARR[color_index], BUZZER_OCTAVE); //set buzzer to note
-        buzzerEnable(&buzzer); //enable buzzer
+        buzzerSetNote(&buzzer1, NOTE_ARR[color_index], BUZZER_OCTAVE); //set buzzer to note
+        buzzerEnable(&buzzer1); //enable buzzer
     }
 }
 
 void stop_note(void) {
-    buzzerDisable(&buzzer); //disable buzzer
+    buzzerDisable(&buzzer1); //disable buzzer
 }
 
 void lightPad(uint8_t color, bool on) {
