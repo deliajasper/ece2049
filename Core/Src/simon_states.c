@@ -58,14 +58,19 @@ static State_t currentState = IDLE;
 // need a sequence for game, sequence for user inupt, current level, current user input, current color, last button pressed
 uint8_t COLOR_SEQUENCE[MAX_SEQ]; // sequence of button presses for the game
 uint8_t USER_SEQUENCE[MAX_SEQ]; // sequence of button presses for the player
-uint8_t CURRENT_LEVEL = 0; // current level of the game
+
+uint8_t CURRENT_LEVEL = 0; // current level of the game -- also representing how long the sequence will get for this lvl
 uint8_t CURRENT_INPUT = 0; // index of the current button press in the player's input
 uint8_t CURRENT_COLOR = 0; // current color being displayed
+uint8_t CURRENT_LENGTH = 0; // current length of the sequence of the current level
+
 uint8_t LAST_BTN = NOT_PRESSED; // last button that was pressed -> starts at 255 bc max val for 8-bit unsigned int so it won't correspond to a color button
 bool WAIT_FOR_RELEASE = false; //wait after a button press until it's let go
+
 bool FIRST_LOOP = true; //first loop after entering a state
 uint8_t PLAYBACK_INDEX = 0; //index of the current btn on the playback
-uint16_t SEQ_TIME = 800; //how long the btn color stays up during playback 
+
+uint16_t SEQ_TIME = 200; //how long the btn color stays up during playback 
 static bool gpioReady = false; //only sets up the pins once
 
 #define DEBOUNCE_TIME 20 //how long to wait after btn release
@@ -77,11 +82,14 @@ static const uint16_t LED_PINS[NUM_BTNS] = {LED_YELLOW_PIN, LED_BLUE_PIN, LED_RE
 static GPIO_TypeDef* BUTTON_PORTS[NUM_BTNS] = {BUTTON_YELLOW_PORT, BUTTON_BLUE_PORT, BUTTON_RED_PORT, BUTTON_GREEN_PORT}; //array of button ports
 static const uint16_t BUTTON_PINS[NUM_BTNS] = {BUTTON_YELLOW_PIN, BUTTON_BLUE_PIN, BUTTON_RED_PIN, BUTTON_GREEN_PIN}; //array of button pins
 
+extern Buzzer buzzer; //extern buzzer struct defined in main.c
+
 #define MODER_MASK(n) (GPIO_MODER_MODE0   << (2 * (n))) //2-bit mode field for pin n
 #define MODER_OUT(n) (GPIO_MODER_MODE0_0 << (2 * (n))) //that field set to 01 = output
 #define PUPDR_MASK(n) (GPIO_PUPDR_PUPD0   << (2 * (n))) //2-bit pull field for pin n
 #define PUPDR_PU(n) (GPIO_PUPDR_PUPD0_0 << (2 * (n))) //that field set to 01 = pull-up
 #define PIN_BIT(n) (1 << (n)) //pin n's bit in ODR or IDR
+#define BUZZER_OCTAVE 2 //buzzer octave
 
 // helper functions
 static void addToSequence() {
@@ -95,25 +103,20 @@ static void addToSequence() {
     }
 }
 
-const uint32_t NOTE_ARR[NUM_BTNS] = {1275, 1702, 2272, 1135}; //yellow, blue, red, green (1 MHz timer base)
+const Note NOTE_ARR[NUM_BTNS] = {NOTE_B, NOTE_C_SHARP, NOTE_G, NOTE_A}; //yellow, blue, red, green
 
 void play_note(uint8_t color_index) {
     if (color_index >= NUM_BTNS) { //ignores invalid colors
         return;
     } else {
         //valid colors
-        uint32_t note = NOTE_ARR[color_index]; //get note for color
-        HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1); //stop pwm
-        __HAL_TIM_SET_AUTORELOAD(&htim1, note); //set new note
-        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, note / 2);
-        __HAL_TIM_SET_COUNTER(&htim1, 0);
-        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); //start pwm
+        buzzerSetNote(&buzzer, NOTE_ARR[color_index], BUZZER_OCTAVE); //set buzzer to note
+        buzzerEnable(&buzzer); //enable buzzer
     }
 }
 
 void stop_note(void) {
-    HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1); //stop pwm
-    __HAL_TIM_SET_COUNTER(&htim1, 0);
+    buzzerDisable(&buzzer); //disable buzzer
 }
 
 void lightPad(uint8_t color, bool on) {
@@ -133,7 +136,7 @@ void lightPad(uint8_t color, bool on) {
 
 uint8_t readButton() {
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        if ((BTN_PORTS[i]->IDR & PIN_BIT(BUTTON_PINS[i])) == 0) {
+        if ((BUTTON_PORTS[i]->IDR & PIN_BIT(BUTTON_PINS[i])) == 0) {
             //0 = pressed (pull up)
             return i; //return color name
         }
@@ -158,9 +161,9 @@ void Game_GPIO_Init() {
         LED_PORTS[i]->ODR &= ~PIN_BIT(LED_PINS[i]); // low = LED off
 
         // initialize btn pins to input w internal pull-up
-        BTN_PORTS[i]->MODER &= ~MODER_MASK(BUTTON_PINS[i]); // clear field -> 00 = input
-        BTN_PORTS[i]->PUPDR &= ~PUPDR_MASK(BUTTON_PINS[i]); // clear pull field
-        BTN_PORTS[i]->PUPDR |= PUPDR_PU(BUTTON_PINS[i]); // set 01 = pull-up
+        BUTTON_PORTS[i]->MODER &= ~MODER_MASK(BUTTON_PINS[i]); // clear field -> 00 = input
+        BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(BUTTON_PINS[i]); // clear pull field
+        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(BUTTON_PINS[i]); // set 01 = pull-up
     }
 }
 
@@ -183,6 +186,9 @@ void Simon_State_Machine(void){
             // TODO: Display countdown on the screen
             // TODO: Transition to PLAY_SEQUENCE after countdown
             currentState = PLAY_SEQUENCE;
+            addToSequence(); //add first color to sequence
+            CURRENT_LENGTH = 1; //start with 1 color in sequence
+            FIRST_LOOP = true; //set for game
             break;
 
         case PLAY_SEQUENCE: // Tran
@@ -197,7 +203,7 @@ void Simon_State_Machine(void){
                 FIRST_LOOP = false;
             }
 
-            if (PLAYBACK_INDEX < CURRENT_LEVEL) { //still more colors to play
+            if (PLAYBACK_INDEX < CURRENT_LENGTH) { //still more colors to play
                 CURRENT_COLOR = COLOR_SEQUENCE[PLAYBACK_INDEX];
 
                 lightPad(CURRENT_COLOR, true); //led on
@@ -239,7 +245,7 @@ void Simon_State_Machine(void){
 
                     lightPad(LAST_BTN, true); //led on
                     play_note(LAST_BTN); //note on
-                } //else: btn still pressed
+                }
             } else if (WAIT_FOR_RELEASE) { //btn was just released
                 uint8_t releasedBtn = LAST_BTN; //btn that was just released
                 LAST_BTN = NOT_PRESSED; //reset last btn
@@ -257,15 +263,20 @@ void Simon_State_Machine(void){
                     USER_SEQUENCE[CURRENT_INPUT] = releasedBtn; //store btn in user sequence
                     CURRENT_INPUT++; //next btn in user input sequence
 
-                    //if user finished level
-                    if (CURRENT_INPUT == CURRENT_LEVEL) { //finished ALL lvls
-                        if (CURRENT_LEVEL >= MAX_SEQ) { //finished all lvls
-                            FIRST_LOOP = true; //reset for next time
+                    //if user entered all the correct btns for the current level
+                    if (CURRENT_INPUT == CURRENT_LENGTH) { //finished current user's seq
+                        if (CURRENT_LENGTH < CURRENT_LEVEL) { // lvl not done, show more colors
+                            CURRENT_LENGTH++; //next round of current lvl's sequence
+                            FIRST_LOOP = true; //reset for next round in same level
+                            currentState = PLAY_SEQUENCE; //replay lvl with one more color
+                        } else if (CURRENT_LEVEL >= MAX_SEQ) { //finished the last color of the last level
+                            FIRST_LOOP = true; //reset for next time user plays
                             currentState = GAME_WIN; //win game, yay!
-                        } else { //not finished all lvls
+                        } else { //finish current level, move on to next
                             DWT_delayMs(SUCCESS_TIME); //wait a bit before next level
-                            addToSequence(); //add new color to next lvl
-                            FIRST_LOOP = true; //reset for next time
+                            addToSequence(); //add new color and level++
+                            CURRENT_LENGTH = 1; //next level starts back at 1 color
+                            FIRST_LOOP = true; //reset
                             currentState = PLAY_SEQUENCE; //play next level
                         }
                     }
