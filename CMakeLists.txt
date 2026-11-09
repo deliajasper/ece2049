@@ -35,7 +35,8 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C CXX ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME})
+add_executable(${CMAKE_PROJECT_NAME}
+    Core/Src/simon_states.h)
 
 # CUSTOM: Enable C++ linkage support
 set_target_properties(
@@ -70,6 +71,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/graphics/Adafruit_TFTShield18_API.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/dwt_module.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/buzzer.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/dwt_module.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/buzzer.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/simon_states.c
 )
 
 # Add include paths

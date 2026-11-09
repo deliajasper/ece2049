@@ -32,6 +32,8 @@
 #include "buzzer.h"
 #include "stm32h5xx_hal_tim.h"
 
+#include "simon_states.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,7 +88,9 @@ static void MX_ICACHE_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_RNG_Init(void);
 static void MX_TIM1_Init(void);
+
 /* USER CODE BEGIN PFP */
+void Simon_State_Machine(void);
 
 /* USER CODE END PFP */
 
@@ -192,12 +196,14 @@ int main(void)
   buzzerSetNote(&buzzer1, chromaticScale[currNoteNum], currOctave);
   buzzerDisable(&buzzer1);
 
-  uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
+  //uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
 
   while (1)
   {
     /* Place application loop code here */
+      Simon_State_Machine();
 
+      /*
     uint32_t buttons = TFTShield18_readButtons();
 
     if(lastButtonState != buttons) {
@@ -228,6 +234,7 @@ int main(void)
     }
 
     lastButtonState = buttons;
+    */
 
     /* USER CODE END WHILE */
 

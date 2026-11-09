@@ -1,3 +1,6 @@
+#ifndef BUZZER_H
+#define BUZZER_H
+
 #include "stm32h5xx_hal.h"
 #include "stdint.h"
 #include "stdbool.h"
@@ -39,3 +42,5 @@ void buzzerDisable(Buzzer * const buzzer);
 void buzzerSetNote(Buzzer const *buzzer, Note note, int32_t octave);
 
 uint32_t buzzerGetPrescalerFromNote(Buzzer const *buzzer, Note note);
+
+#endif /* BUZZER_H */
