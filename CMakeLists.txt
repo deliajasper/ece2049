@@ -35,7 +35,8 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C CXX ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME})
+add_executable(${CMAKE_PROJECT_NAME}
+    Core/Src/simon_states.h)
 
 # CUSTOM: Enable C++ linkage support
 set_target_properties(

@@ -15,29 +15,29 @@
 // PORT: GPIOA, GPIOB, GPIOC
 // PIN: PIN NUMBER (0-15)
 // LEDS: PC10, PC 12, PC14, PC2
-#define LED_YELLOW_PIN GPIO_PIN_10
+#define LED_YELLOW_PIN GPIO_PIN_10 //1st pin from the top on left col of CN7
 #define LED_YELLOW_PORT GPIOC
 
-#define LED_BLUE_PIN GPIO_PIN_12
+#define LED_BLUE_PIN GPIO_PIN_12 //2nd pin from the top on left col of CN7
 #define LED_BLUE_PORT GPIOC
 
-#define LED_RED_PIN GPIO_PIN_14
+#define LED_RED_PIN GPIO_PIN_14 //7th up from the bottom on the left col of CN7
 #define LED_RED_PORT GPIOC
 
-#define LED_GREEN_PIN GPIO_PIN_2
+#define LED_GREEN_PIN GPIO_PIN_2 //2nd up from the bottom on the left col of CN7
 #define LED_GREEN_PORT GPIOC
 
 // BUTTONS: PB12, PB2, PB15, PB14
-#define BUTTON_YELLOW_PIN GPIO_PIN_12
+#define BUTTON_YELLOW_PIN GPIO_PIN_12 //8th from top on right col of CN10
 #define BUTTON_YELLOW_PORT GPIOB
 
-#define BUTTON_BLUE_PIN GPIO_PIN_2
+#define BUTTON_BLUE_PIN GPIO_PIN_2 //3 down from PB12
 #define BUTTON_BLUE_PORT GPIOB
 
-#define BUTTON_RED_PIN GPIO_PIN_15
+#define BUTTON_RED_PIN GPIO_PIN_15 //2 down from PB2
 #define BUTTON_RED_PORT GPIOB
 
-#define BUTTON_GREEN_PIN GPIO_PIN_14
+#define BUTTON_GREEN_PIN GPIO_PIN_14 //1 down from PB15
 #define BUTTON_GREEN_PORT GPIOB
 
 // BUZZER: PE9
@@ -90,13 +90,14 @@ static const uint16_t LED_PINS[NUM_BTNS] = {LED_YELLOW_PIN, LED_BLUE_PIN, LED_RE
 static GPIO_TypeDef* BUTTON_PORTS[NUM_BTNS] = {BUTTON_YELLOW_PORT, BUTTON_BLUE_PORT, BUTTON_RED_PORT, BUTTON_GREEN_PORT}; //array of button ports
 static const uint16_t BUTTON_PINS[NUM_BTNS] = {BUTTON_YELLOW_PIN, BUTTON_BLUE_PIN, BUTTON_RED_PIN, BUTTON_GREEN_PIN}; //array of button pins
 
-extern Buzzer buzzer; //extern buzzer struct defined in main.c
+extern Buzzer buzzer1; //extern buzzer struct defined in main.c
+extern RNG_HandleTypeDef hrng;
 
 #define MODER_MASK(n) (GPIO_MODER_MODE0   << (2 * (n))) //2-bit mode field for pin n
 #define MODER_OUT(n) (GPIO_MODER_MODE0_0 << (2 * (n))) //that field set to 01 = output
 #define PUPDR_MASK(n) (GPIO_PUPDR_PUPD0   << (2 * (n))) //2-bit pull field for pin n
 #define PUPDR_PU(n) (GPIO_PUPDR_PUPD0_0 << (2 * (n))) //that field set to 01 = pull-up
-#define PIN_BIT(n) (1 << (n)) //pin n's bit in ODR or IDR
+#define PIN_NUM(mask) (__builtin_ctz(mask)) //pin n's bit in ODR or IDR
 #define BUZZER_OCTAVE 2 //buzzer octave
 
 // helper functions
@@ -134,17 +135,17 @@ void lightPad(uint8_t color, bool on) {
         //valid colors
         if (on) {
             // if 'on'is true
-            LED_PORTS[color]->ODR |= PIN_BIT(LED_PINS[color]); //set bit to HIGH, so led on
+            LED_PORTS[color]->ODR |= LED_PINS[color];; //set bit to HIGH, so led on
         } else {
             // if 'on' is false
-            LED_PORTS[color]->ODR &= ~PIN_BIT(LED_PINS[color]); //set bit to LOW, so led off
+            LED_PORTS[color]->ODR &= ~LED_PINS[color]; //set bit to LOW, so led off
         }
     }
 }
 
 uint8_t readButton() {
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        if ((BUTTON_PORTS[i]->IDR & PIN_BIT(BUTTON_PINS[i])) == 0) {
+        if ((BUTTON_PORTS[i]->IDR & BUTTON_PINS[i]) == 0) {
             //0 = pressed (pull up)
             return i; //return color name
         }
@@ -164,24 +165,40 @@ void Game_GPIO_Init() {
 
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
         //initialize led pins to outputs
-        LED_PORTS[i]->MODER &= ~MODER_MASK(LED_PINS[i]); // clear the field
-        LED_PORTS[i]->MODER |= MODER_OUT(LED_PINS[i]); // set 01 = output
-        LED_PORTS[i]->ODR &= ~PIN_BIT(LED_PINS[i]); // low = LED off
+        uint32_t ledN = PIN_NUM(LED_PINS[i]);
+        LED_PORTS[i]->MODER &= ~MODER_MASK(ledN); // clear the field
+        LED_PORTS[i]->MODER |= MODER_OUT(ledN); // set 01 = output
+        LED_PORTS[i]->ODR   &= ~LED_PINS[i]; // low = LED off
 
         // initialize btn pins to input w internal pull-up
-        BUTTON_PORTS[i]->MODER &= ~MODER_MASK(BUTTON_PINS[i]); // clear field -> 00 = input
-        BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(BUTTON_PINS[i]); // clear pull field
-        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(BUTTON_PINS[i]); // set 01 = pull-up
+        uint32_t btnN = PIN_NUM(BUTTON_PINS[i]);
+        BUTTON_PORTS[i]->MODER &= ~MODER_MASK(btnN); // clear field -> 00 = input
+        BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(btnN); // clear pull field
+        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(btnN); // set 01 = pull-up
     }
 }
 
 
 void Simon_State_Machine(void){
     if (!gpioReady) {
-        Game_GPIO_Init(); //initializes gpio
-        gpioReady = true; //sets flag to be true
+        Game_GPIO_Init();
+        gpioReady = true;
+
+        // LED test: flash each LED once at startup
+        for (uint8_t i = 0; i < NUM_BTNS; i++) {
+            lightPad(i, true);
+            DWT_delayMs(300);
+            lightPad(i, false);
+        }
     }
 
+    // Button test: each button lights its own LED while held
+    uint8_t btn = readButton();
+    for (uint8_t i = 0; i < NUM_BTNS; i++) {
+        lightPad(i, btn == i);
+    }
+
+    /*
     switch(currentState){
         case IDLE: // Isaac
             // Wait for user input to start the game
@@ -229,7 +246,7 @@ void Simon_State_Machine(void){
 
             break;
 
-        case PLAYER_INPUT: // Tran
+        case PLAYER_INPUT: { // Tran
             // Wait for player input and check against the sequence
             // TODO: Implement method(s) to read player input from the buttons and compare it to the sequence
             // TODO: Transition back to PLAY_SEQUENCE if the player input is correct AND the game is not over
@@ -292,7 +309,7 @@ void Simon_State_Machine(void){
             }
 
             break;
-
+        }
         case GAME_WIN: // Isaac
             // Handle game win logic
             // TODO: Add win message to screen
@@ -311,6 +328,7 @@ void Simon_State_Machine(void){
             currentState = IDLE;
             break;
     }
+    */
 
 }
 
