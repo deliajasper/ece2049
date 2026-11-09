@@ -214,9 +214,6 @@ void In_Game_Display(void){
     Display_setTextSize(1, 1);
     Display_setTextColor(ST7735_BLACK);
 
-    Display_setCursor(8, 5);
-    Display_print(levelString);
-
     if (currentState == IDLE) {
         Display_setCursor(24, 35);
         Display_print("SIMON GAME");
@@ -236,13 +233,17 @@ void In_Game_Display(void){
         return;
     }
     if (currentState == GAME_WIN) {
+        Display_setTextSize(2, 2);
         Display_setCursor(32, 48);
-        Display_print("YOU WIN!", "All 32 levels!", ST7735_GREEN);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("YOU WIN!");
         return;
     }
     if (currentState == GAME_LOSE) {
-        Display_setCursor(32, 48);
-        Display_print("GAME OVER", "Try again!", ST7735_RED);
+        Display_setTextSize(2, 2);
+        Display_setCursor(26, 48);
+        Display_setTextColor(ST7735_RED);
+        Display_print("GAME OVER");
         return;
     }
 
@@ -273,8 +274,9 @@ void In_Game_Display(void){
     Display_setCursor(8, 115);
     Display_print("Last 5:");
 
+    uint8_t start = (CURRENT_INPUT > 5) ? CURRENT_INPUT - 5 : 0;
 
-    for (uint8_t i = 0; i < 5; i++) {
+    for (uint8_t i = start; i < CURRENT_INPUT; i++) {
         Display_fillCircle( 66 + i * 17, 118, 5,brightColors[USER_SEQUENCE[i]]);
     }
     
@@ -299,7 +301,6 @@ void Simon_State_Machine(void){
         lightPad(i, btn == i);
     }
 
-    /*
     switch(currentState){
         case IDLE: // Isaac
             // Wait for user input to start the game
@@ -341,6 +342,7 @@ void Simon_State_Machine(void){
                 DWT_delayMs(SEQ_TIME); //keep it lit
                 lightPad(CURRENT_COLOR, false); //led off
                 stop_note(); //note off
+                In_Game_Display();
                 DWT_delayMs(SEQ_TIME / 2); //short gap before the next color
 
                 PLAYBACK_INDEX++;
@@ -434,4 +436,4 @@ void Simon_State_Machine(void){
             break;
     }
     In_Game_Display();
-}*/
+}
