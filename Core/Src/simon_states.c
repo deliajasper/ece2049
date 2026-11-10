@@ -14,26 +14,38 @@
 
 // later: buttons[currBtn] = {LED color, button info, note frequency, etc}
 
+// display:
+// left port middle row -> 9th pin from the right in the top row of CN10
+// right port middle row -> 2nd pin from the right in the top row of CN7
+
 // PORT: GPIOA, GPIOB, GPIOC
 // PIN: PIN NUMBER (0-15)
-// LEDS: PC10, PC 12, PA15, PC2
-#define LED_YELLOW_PIN
-#define LED_YELLOW_PORT    
-#define LED_BLUE_PIN
-#define LED_BLUE_PORT
-#define LED_RED_PIN
-#define LED_RED_PORT
-#define LED_GREEN_PIN
-#define LED_GREEN_PORT
+// LEDS: PC12, PC 10, PC0, PC2
+#define LED_YELLOW_PIN GPIO_PIN_12 //2nd pin from the top on left col of CN7
+#define LED_YELLOW_PORT GPIOC
+
+#define LED_BLUE_PIN GPIO_PIN_10 //1st pin from the top on left col of CN7
+#define LED_BLUE_PORT GPIOC
+
+#define LED_RED_PIN GPIO_PIN_0 //5th up from the bottom on the left col of CN7
+#define LED_RED_PORT GPIOC
+
+#define LED_GREEN_PIN GPIO_PIN_2 //2nd up from the bottom on the left col of CN7
+#define LED_GREEN_PORT GPIOC
+
 // BUTTONS: PB12, PB2, PB15, PB14
-#define BUTTON_YELLOW_PIN
-#define BUTTON_YELLOW_PORT
-#define BUTTON_BLUE_PIN
-#define BUTTON_BLUE_PORT
-#define BUTTON_RED_PIN    
-#define BUTTON_RED_PORT
-#define BUTTON_GREEN_PIN
-#define BUTTON_GREEN_PORT
+#define BUTTON_YELLOW_PIN GPIO_PIN_12 //8th from top on right col of CN10
+#define BUTTON_YELLOW_PORT GPIOB
+
+#define BUTTON_BLUE_PIN GPIO_PIN_2 //3 down from PB12
+#define BUTTON_BLUE_PORT GPIOB
+
+#define BUTTON_RED_PIN GPIO_PIN_15 //2 down from PB2
+#define BUTTON_RED_PORT GPIOB
+
+#define BUTTON_GREEN_PIN GPIO_PIN_14 //1 down from PB15
+#define BUTTON_GREEN_PORT GPIOB
+
 // BUZZER: PE9
 #define BUZZER_PIN GPIO_PIN_9
 #define BUZZER_PORT GPIOE
@@ -50,7 +62,15 @@ typedef enum{
 
 static State_t currentState = IDLE;
 
-// TODO: IOther variables needed may include a sequence array, a player input array, variables to keep track of the current level or sequence length,
+static bool levelSuccess = false; // Track if the player has successfully completed the current level
+static bool gameLost = false; // Track if the player has lost the game
+static bool gameWon = false; // Track if the player has won the game
+
+// TODO: assign order of colors
+static bool buttonPressed[4] = {false, false, false, false}; // Track button presses for each color  
+static bool updateDisplay = false; // Flag to indicate if the display needs to be updated
+
+// TODO: Other variables needed may include a sequence array, a player input array, variables to keep track of the current level or sequence length,
 // booleans to track if the sequence was correctly enetered, a number for how many levels there are, a varaibles for what level the player is on, etc.
 // things about the game itself
 #define NUM_BTNS 4 //4 buttons, 0 = yellow, 1 = blue, 2 = red, 3 = green
@@ -84,13 +104,14 @@ static const uint16_t LED_PINS[NUM_BTNS] = {LED_YELLOW_PIN, LED_BLUE_PIN, LED_RE
 static GPIO_TypeDef* BUTTON_PORTS[NUM_BTNS] = {BUTTON_YELLOW_PORT, BUTTON_BLUE_PORT, BUTTON_RED_PORT, BUTTON_GREEN_PORT}; //array of button ports
 static const uint16_t BUTTON_PINS[NUM_BTNS] = {BUTTON_YELLOW_PIN, BUTTON_BLUE_PIN, BUTTON_RED_PIN, BUTTON_GREEN_PIN}; //array of button pins
 
-extern Buzzer buzzer; //extern buzzer struct defined in main.c
+extern Buzzer buzzer1; //extern buzzer struct defined in main.c
+extern RNG_HandleTypeDef hrng;
 
 #define MODER_MASK(n) (GPIO_MODER_MODE0   << (2 * (n))) //2-bit mode field for pin n
 #define MODER_OUT(n) (GPIO_MODER_MODE0_0 << (2 * (n))) //that field set to 01 = output
 #define PUPDR_MASK(n) (GPIO_PUPDR_PUPD0   << (2 * (n))) //2-bit pull field for pin n
-#define PUPDR_PU(n) (GPIO_PUPDR_PUPD0_0 << (2 * (n))) //that field set to 01 = pull-up
-#define PIN_BIT(n) (1 << (n)) //pin n's bit in ODR or IDR
+#define PUPDR_PU(n) (GPIO_PUPDR_PUPD0_1 << (2 * (n))) //that field set to 10 = pull-down
+#define PIN_NUM(mask) (__builtin_ctz(mask)) //pin n's bit in ODR or IDR
 #define BUZZER_OCTAVE 2 //buzzer octave
 
 // helper functions
@@ -112,13 +133,13 @@ void play_note(uint8_t color_index) {
         return;
     } else {
         //valid colors
-        buzzerSetNote(&buzzer, NOTE_ARR[color_index], BUZZER_OCTAVE); //set buzzer to note
-        buzzerEnable(&buzzer); //enable buzzer
+        buzzerSetNote(&buzzer1, NOTE_ARR[color_index], BUZZER_OCTAVE); //set buzzer to note
+        buzzerEnable(&buzzer1); //enable buzzer
     }
 }
 
 void stop_note(void) {
-    buzzerDisable(&buzzer); //disable buzzer
+    buzzerDisable(&buzzer1); //disable buzzer
 }
 
 void lightPad(uint8_t color, bool on) {
@@ -128,22 +149,26 @@ void lightPad(uint8_t color, bool on) {
         //valid colors
         if (on) {
             // if 'on'is true
-            LED_PORTS[color]->ODR |= PIN_BIT(LED_PINS[color]); //set bit to HIGH, so led on
+            LED_PORTS[color]->ODR |= LED_PINS[color]; //set bit to HIGH, so led on
         } else {
             // if 'on' is false
-            LED_PORTS[color]->ODR &= ~PIN_BIT(LED_PINS[color]); //set bit to LOW, so led off
+            LED_PORTS[color]->ODR &= ~LED_PINS[color]; //set bit to LOW, so led off
         }
     }
+    // update array for graphics when button turns on
+    buttonPressed[color]= on;
+    updateDisplay = true;
 }
 
 uint8_t readButton() {
+    uint8_t butt = NOT_PRESSED;
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        if ((BUTTON_PORTS[i]->IDR & PIN_BIT(BUTTON_PINS[i])) == 0) {
-            //0 = pressed (pull up)
-            return i; //return color name
+        if ((BUTTON_PORTS[i]->IDR & BUTTON_PINS[i]) != 0) {
+            //0 = pressed (pull down)
+            butt = i; //return color name
         }
     }
-    return NOT_PRESSED;
+    return butt;
 }
 
 void Game_GPIO_Init() {
@@ -158,32 +183,124 @@ void Game_GPIO_Init() {
 
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
         //initialize led pins to outputs
-        LED_PORTS[i]->MODER &= ~MODER_MASK(LED_PINS[i]); // clear the field
-        LED_PORTS[i]->MODER |= MODER_OUT(LED_PINS[i]); // set 01 = output
-        LED_PORTS[i]->ODR &= ~PIN_BIT(LED_PINS[i]); // low = LED off
+        uint32_t ledN = PIN_NUM(LED_PINS[i]);
+        LED_PORTS[i]->MODER &= ~MODER_MASK(ledN); // clear the field
+        LED_PORTS[i]->MODER |= MODER_OUT(ledN); // set 01 = output
+        LED_PORTS[i]->ODR   &= ~LED_PINS[i]; // low = LED off
 
         // initialize btn pins to input w internal pull-up
-        BUTTON_PORTS[i]->MODER &= ~MODER_MASK(BUTTON_PINS[i]); // clear field -> 00 = input
-        BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(BUTTON_PINS[i]); // clear pull field
-        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(BUTTON_PINS[i]); // set 01 = pull-up
+        uint32_t btnN = PIN_NUM(BUTTON_PINS[i]);
+        BUTTON_PORTS[i]->MODER &= ~MODER_MASK(btnN); // clear field -> 00 = input
+        BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(btnN); // clear pull field
+        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(btnN); // set 10 = pull-down
     }
 }
 
 
+// Tran
+// TODO: Implement memory data structure to keep track of the full history of button presses
+// TODO: Implement random number generator to generate the sequence of button presses for the game
+// TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
+
+// Constants for GUI, tune when display is on
+static const uint16_t brightColors[4] = {0x07E0, 0xF800, 0xFFE0, 0x001F};
+static const uint16_t dimColors[4] = {0x0200, 0x5000, 0x5280, 0x000A};
+static const int16_t xPos[4] = {20, 86, 20, 86};
+static const int16_t yPos[4] = {22, 22, 66, 66};
+
+void In_Game_Display(void){ 
+    // Avoid redrawing the display if nothing needs to be updated
+    if(!updateDisplay){
+        return;
+    }
+    updateDisplay = false; // Reset the flag after updating the display
+
+    Display_setTextSize(1, 1);
+    Display_setTextColor(ST7735_BLACK);
+
+    if (currentState == IDLE) {
+        Display_setCursor(24, 35);
+        Display_print("SIMON GAME");
+        Display_setTextSize(1, 1);
+        Display_setCursor(24, 76);
+        Display_print("Press SELECT to start");
+        return;
+    }
+    if (currentState == COUNTDOWN) {
+        char number[8]; // char to hold the countdown number as a string
+        // calculate how much time has passed
+        // print the number
+        Display_setCursor(24, 48);
+        Display_print("Get ready to start in:");
+        Display_setCursor(24, 64);
+        //Display_print(number);
+        return;
+    }
+    if (currentState == GAME_WIN) {
+        Display_setTextSize(2, 2);
+        Display_setCursor(32, 48);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("YOU WIN!");
+        return;
+    }
+    if (currentState == GAME_LOSE) {
+        Display_setTextSize(2, 2);
+        Display_setCursor(26, 48);
+        Display_setTextColor(ST7735_RED);
+        Display_print("GAME OVER");
+        return;
+    }
+
+    Display_fillScreen(ST7735_WHITE);
+    char levelString[32];
+    snprintf(levelString, sizeof(levelString), "Level: %u / %u", CURRENT_LEVEL, MAX_SEQ);
+    Display_setTextColor(ST7735_BLACK);
+    Display_setTextSize(1, 1);
+    Display_setCursor(8, 5);
+    Display_print(levelString);
+
+    if (levelSuccess) {
+        Display_setCursor(32, 48);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("GOOD JOB!");
+    }
+    
+    // Drawing buttons, looping to make it easy
+    for(uint8_t index = 0; index < 4; index++){
+        if(buttonPressed[index]){
+            Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, brightColors[index]);
+        } else {
+            Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, dimColors[index]);
+        }
+    }
+    
+    Display_setTextColor(ST7735_BLACK);
+    Display_setCursor(8, 115);
+    Display_print("Last 5:");
+
+    uint8_t start = (CURRENT_INPUT > 5) ? CURRENT_INPUT - 5 : 0;
+
+    for (uint8_t i = start; i < CURRENT_INPUT; i++) {
+        Display_fillCircle( 66 + i * 17, 118, 5,brightColors[USER_SEQUENCE[i]]);
+    }
+    
+}
+
 void Simon_State_Machine(void){
+    dbgMarker = 0xCAFE;
     if (!gpioReady) {
-        Game_GPIO_Init(); //initializes gpio
-        gpioReady = true; //sets flag to be true
+        Game_GPIO_Init();
+        gpioReady = true;            
     }
 
     switch(currentState){
         case IDLE: // Isaac
             // Wait for user input to start the game
-            // TODO: Display welcome screen 
-            // TODO: Transition to COUNTDOWN when user starts the game by pressing select
-            Display_setTextSize(40, 1);
+            Display_setTextSize(1, 1);
             Display_setTextColor(ST7735_BLACK);
             Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 - 5);
+            Display_print("Welcome to the Simon Says Game!");
+            Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 + 10);
             Display_print("Press 'Select' to begin"); // I dont actually know what the select button is so I just said if any button on the Adafruit is pressed the game starts
             uint32_t startgame = TFTShield18_readButtons();  
             if((startgame & TFTSHIELD_BUTTON_ALL) != TFTSHIELD_BUTTON_ALL){ // this does not check for button release so do not hold the button down because I am not sure what that will do
@@ -242,6 +359,7 @@ void Simon_State_Machine(void){
                 DWT_delayMs(SEQ_TIME); //keep it lit
                 lightPad(CURRENT_COLOR, false); //led off
                 stop_note(); //note off
+                In_Game_Display();
                 DWT_delayMs(SEQ_TIME / 2); //short gap before the next color
 
                 PLAYBACK_INDEX++;
@@ -252,7 +370,7 @@ void Simon_State_Machine(void){
 
             break;
 
-        case PLAYER_INPUT: // Tran
+        case PLAYER_INPUT: { // Tran
             // Wait for player input and check against the sequence
             // TODO: Implement method(s) to read player input from the buttons and compare it to the sequence
             // TODO: Transition back to PLAY_SEQUENCE if the player input is correct AND the game is not over
@@ -315,7 +433,7 @@ void Simon_State_Machine(void){
             }
 
             break;
-
+        }
         case GAME_WIN: // Isaac
             // Handle game win logic
             // TODO: Add win message to screen
@@ -334,21 +452,5 @@ void Simon_State_Machine(void){
             currentState = IDLE;
             break;
     }
-
+    In_Game_Display();
 }
-
-// Tran
-// TODO: Implement memory data structure to keep track of the full history of button presses
-// TODO: Implement random number generator to generate the sequence of button presses for the game
-// TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
-
-void In_Game_Display(void){ // Delia graphics
-    // TODO: Implement display logic for the game, including showing the current sequence, 
-    // player input, current level, and game status (win/lose)
-    // TODO: Each buttone should have its own element showing button state and should be "visually appealing"
-    // TODO: Implement a success message when the player enters the sequence corrent for one level
-    // TODO: Show history of last five buttons
-    // Graphics will be more than this and likely multiple methods
-}
-
-// add more graphics method here

@@ -32,6 +32,8 @@
 #include "buzzer.h"
 #include "stm32h5xx_hal_tim.h"
 
+#include "simon_states.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,7 +88,9 @@ static void MX_ICACHE_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_RNG_Init(void);
 static void MX_TIM1_Init(void);
+
 /* USER CODE BEGIN PFP */
+void Simon_State_Machine(void);
 
 /* USER CODE END PFP */
 
@@ -171,33 +175,19 @@ int main(void)
     printf("TFT shield initialized successfully!\n\r");
   }
 
-  // Software reset the entire TFT shield to restore it to a known empty startup state
+  // Initialization methods for display, keep these before the main simmon method
   TFTShield18_tftReset(true);
   DWT_delayMs(100);
-
-  // Initialize the display object and the display itself to support graphics operations. No error handling is
-  // provided since there is no way to read the status from the display. Proper operation of the display and response
-  // to graphics commands provide enough confidence that the display is working correctly.
   Display_create(&hspi2, DISP_CS_Pin, DISP_CS_GPIO_Port, DISP_DCX_SEL_Pin, DISP_DCX_SEL_GPIO_Port);
   Display_init(INITR_BLACKTAB);
   DWT_delayMs(100);
-
-  // Set the display to be in landscape mode and clear the screen
   Display_setRotation(1);
   Display_fillScreen(ST77XX_WHITE);
-
-  // Turn on the TFT shield backlight to its maximum value
   TFTShield18_setBacklight(TFTSHIELD_BACKLIGHT_ON);
 
   /* Place extra user setup code here */
 
-  Display_setTextSize(1, 1);
-  Display_setTextColor(ST7735_BLACK);
-  Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 - 5);
-  Display_print("Welcome to ECE 2049!");
-  Display_drawCircle(10, 7, 5, ST7735_MAGENTA);
-  Display_drawRoundRect(15, 15, 4, 7, 1, ST77XX_BLUE);
-  Display_invertDisplay(true);
+  
 
 
   int32_t currNoteNum = 0;
@@ -206,12 +196,14 @@ int main(void)
   buzzerSetNote(&buzzer1, chromaticScale[currNoteNum], currOctave);
   buzzerDisable(&buzzer1);
 
-  uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
+  //uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
 
   while (1)
   {
     /* Place application loop code here */
+      Simon_State_Machine();
 
+      /*
     uint32_t buttons = TFTShield18_readButtons();
 
     if(lastButtonState != buttons) {
@@ -242,6 +234,7 @@ int main(void)
     }
 
     lastButtonState = buttons;
+    */
 
     /* USER CODE END WHILE */
 
