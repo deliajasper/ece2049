@@ -348,9 +348,11 @@ void Simon_State_Machine(void){
                 Display_setTextSize(4, 4);
                 Display_setCursor(68, 48);
                 Display_setTextColor(ST7735_BLACK);
+                
+                Display_fillRect(60, 40, 40, 50, ST7735_WHITE);
                 Display_print(seconds_string);
                 HAL_Delay(1000); // wait 1000 milliseconds, 1 second
-                Display_fillRect(60, 40, 40, 50, ST7735_WHITE);
+                
             }
             CURRENT_LEVEL = 0; // reset the level so it starts from 0
             addToSequence(); //add first color to sequence
