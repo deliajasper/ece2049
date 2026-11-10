@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "main.h"
 #include "stm32h5xx_it.h"
 #include "Adafruit_ST7735_Macros.h"
@@ -9,6 +10,7 @@
 
 #include "buzzer.h"
 #include "stm32h5xx_hal_tim.h"
+#include <stdbool.h>
 
 // later: buttons[currBtn] = {LED color, button info, note frequency, etc}
 
@@ -177,18 +179,47 @@ void Simon_State_Machine(void){
     switch(currentState){
         case IDLE: // Isaac
             // Wait for user input to start the game
-            // TODO: Display welcome screen
+            // TODO: Display welcome screen 
             // TODO: Transition to COUNTDOWN when user starts the game by pressing select
+            Display_setTextSize(40, 1);
+            Display_setTextColor(ST7735_BLACK);
+            Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 - 5);
+            Display_print("Press 'Select' to begin"); // I dont actually know what the select button is so I just said if any button on the Adafruit is pressed the game starts
+            uint32_t startgame = TFTShield18_readButtons();  
+            if((startgame & TFTSHIELD_BUTTON_ALL) != TFTSHIELD_BUTTON_ALL){ // this does not check for button release so do not hold the button down because I am not sure what that will do
+                DWT_delayMs(200); // wait 200 milliseconds to prepare player for countdown
+                lightPad(0, false); // turn off all LEDs? please confirm if this does that
+                lightPad(1, false);
+                lightPad(2, false);
+                lightPad(3, false);
+                currentState = COUNTDOWN;
+            }
             break;
+        
 
         case COUNTDOWN: // Isaac
             // Perform countdown logic here
             // TODO: Display countdown on the screen
             // TODO: Transition to PLAY_SEQUENCE after countdown
-            currentState = PLAY_SEQUENCE;
+            Display_fillScreen(ST77XX_WHITE); //clears screen left over from IDLE
+            int i;
+            for(i = 3; i >= 1; i--){ // this should count down the numbers
+                int placeHolder = i;
+                char text[2];
+                sprintf(text, "%d", placeHolder); // convert placeHolder to something that Display_print can read
+
+                Display_setTextSize(40, 1);
+                Display_setTextColor(ST7735_BLACK);
+                Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 - 5);
+                Display_print(text);
+                DWT_delayMs(1000); // wait 1000 milliseconds, 1 second
+                Display_fillScreen(ST77XX_WHITE); // clears screen
+            }
+            CURRENT_LEVEL = 0; // reset the level so it starts from 0
             addToSequence(); //add first color to sequence
             CURRENT_LENGTH = 1; //start with 1 color in sequence
             FIRST_LOOP = true; //set for game
+            currentState = PLAY_SEQUENCE;
             break;
 
         case PLAY_SEQUENCE: // Tran
