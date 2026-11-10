@@ -215,12 +215,11 @@ void Simon_State_Machine(void){
             
     }
 
-    // Button test: each button lights its own LED while held
-    dbgIdrB = GPIOB->IDR;
+    // Button test using readButton()
+    uint8_t btn = readButton();
+    dbgIdrB = btn;
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        bool pressed = (BUTTON_PORTS[i]->IDR & BUTTON_PINS[i]) != 0;
-        dbgPressed[i] = pressed;
-        lightPad(i, pressed);
+        lightPad(i, btn == i);
     }
 
     /*
