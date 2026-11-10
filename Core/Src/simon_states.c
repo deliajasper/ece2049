@@ -18,14 +18,14 @@
 
 // PORT: GPIOA, GPIOB, GPIOC
 // PIN: PIN NUMBER (0-15)
-// LEDS: PC10, PC 12, PC14, PC2
-#define LED_YELLOW_PIN GPIO_PIN_10 //1st pin from the top on left col of CN7
+// LEDS: PC12, PC 10, PC0, PC2
+#define LED_YELLOW_PIN GPIO_PIN_12 //1st pin from the top on left col of CN7
 #define LED_YELLOW_PORT GPIOC
 
-#define LED_BLUE_PIN GPIO_PIN_12 //2nd pin from the top on left col of CN7
+#define LED_BLUE_PIN GPIO_PIN_10 //2nd pin from the top on left col of CN7
 #define LED_BLUE_PORT GPIOC
 
-#define LED_RED_PIN GPIO_PIN_14 //7th up from the bottom on the left col of CN7
+#define LED_RED_PIN GPIO_PIN_0 //5th up from the bottom on the left col of CN7
 #define LED_RED_PORT GPIOC
 
 #define LED_GREEN_PIN GPIO_PIN_2 //2nd up from the bottom on the left col of CN7
@@ -47,6 +47,8 @@
 // BUZZER: PE9
 #define BUZZER_PIN GPIO_PIN_9
 #define BUZZER_PORT GPIOE
+
+volatile uint32_t dbgMarker = 0xBEEF;
 
 // Define the states of the Simon game
 typedef enum{
@@ -100,7 +102,7 @@ extern RNG_HandleTypeDef hrng;
 #define MODER_MASK(n) (GPIO_MODER_MODE0   << (2 * (n))) //2-bit mode field for pin n
 #define MODER_OUT(n) (GPIO_MODER_MODE0_0 << (2 * (n))) //that field set to 01 = output
 #define PUPDR_MASK(n) (GPIO_PUPDR_PUPD0   << (2 * (n))) //2-bit pull field for pin n
-#define PUPDR_PU(n) (GPIO_PUPDR_PUPD0_0 << (2 * (n))) //that field set to 01 = pull-up
+#define PUPDR_PU(n) (GPIO_PUPDR_PUPD0_1 << (2 * (n))) //that field set to 10 = pull-down
 #define PIN_NUM(mask) (__builtin_ctz(mask)) //pin n's bit in ODR or IDR
 #define BUZZER_OCTAVE 2 //buzzer octave
 
@@ -139,7 +141,7 @@ void lightPad(uint8_t color, bool on) {
         //valid colors
         if (on) {
             // if 'on'is true
-            LED_PORTS[color]->ODR |= LED_PINS[color];; //set bit to HIGH, so led on
+            LED_PORTS[color]->ODR |= LED_PINS[color]; //set bit to HIGH, so led on
         } else {
             // if 'on' is false
             LED_PORTS[color]->ODR &= ~LED_PINS[color]; //set bit to LOW, so led off
@@ -148,13 +150,14 @@ void lightPad(uint8_t color, bool on) {
 }
 
 uint8_t readButton() {
+    uint8_t butt = NOT_PRESSED;
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        if ((BUTTON_PORTS[i]->IDR & BUTTON_PINS[i]) == 0) {
-            //0 = pressed (pull up)
-            return i; //return color name
+        if ((BUTTON_PORTS[i]->IDR & BUTTON_PINS[i]) != 0) {
+            //0 = pressed (pull down)
+            butt = i; //return color name
         }
     }
-    return NOT_PRESSED;
+    return butt;
 }
 
 void Game_GPIO_Init() {
@@ -178,28 +181,35 @@ void Game_GPIO_Init() {
         uint32_t btnN = PIN_NUM(BUTTON_PINS[i]);
         BUTTON_PORTS[i]->MODER &= ~MODER_MASK(btnN); // clear field -> 00 = input
         BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(btnN); // clear pull field
-        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(btnN); // set 01 = pull-up
+        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(btnN); // set 10 = pull-down
     }
 }
 
+volatile uint32_t dbgIdrB;
+volatile uint8_t dbgPressed[NUM_BTNS];
 
 void Simon_State_Machine(void){
+    dbgMarker = 0xCAFE;
     if (!gpioReady) {
         Game_GPIO_Init();
         gpioReady = true;
 
         // LED test: flash each LED once at startup
+        /*
         for (uint8_t i = 0; i < NUM_BTNS; i++) {
             lightPad(i, true);
             DWT_delayMs(300);
             lightPad(i, false);
         }
+            */
     }
 
     // Button test: each button lights its own LED while held
-    uint8_t btn = readButton();
+    dbgIdrB = GPIOB->IDR;
     for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        lightPad(i, btn == i);
+        bool pressed = (BUTTON_PORTS[i]->IDR & BUTTON_PINS[i]) != 0;
+        dbgPressed[i] = pressed;
+        lightPad(i, pressed);
     }
 
     /*
