@@ -194,6 +194,96 @@ void Game_GPIO_Init() {
     }
 }
 
+
+// Tran
+// TODO: Implement memory data structure to keep track of the full history of button presses
+// TODO: Implement random number generator to generate the sequence of button presses for the game
+// TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
+
+// Constants for GUI, tune when display is on
+static const uint16_t brightColors[4] = {0x07E0, 0xF800, 0xFFE0, 0x001F};
+static const uint16_t dimColors[4] = {0x0200, 0x5000, 0x5280, 0x000A};
+static const int16_t xPos[4] = {20, 86, 20, 86};
+static const int16_t yPos[4] = {22, 22, 66, 66};
+
+void In_Game_Display(void){ 
+    // Avoid redrawing the display if nothing needs to be updated
+    if(!updateDisplay){
+        return;
+    }
+    updateDisplay = false; // Reset the flag after updating the display
+
+    Display_setTextSize(1, 1);
+    Display_setTextColor(ST7735_BLACK);
+
+    if (currentState == IDLE) {
+        Display_setCursor(24, 35);
+        Display_print("SIMON GAME");
+        Display_setTextSize(1, 1);
+        Display_setCursor(24, 76);
+        Display_print("Press SELECT to start");
+        return;
+    }
+    if (currentState == COUNTDOWN) {
+        char number[8]; // char to hold the countdown number as a string
+        // calculate how much time has passed
+        // print the number
+        Display_setCursor(24, 48);
+        Display_print("Get ready to start in:");
+        Display_setCursor(24, 64);
+        //Display_print(number);
+        return;
+    }
+    if (currentState == GAME_WIN) {
+        Display_setTextSize(2, 2);
+        Display_setCursor(32, 48);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("YOU WIN!");
+        return;
+    }
+    if (currentState == GAME_LOSE) {
+        Display_setTextSize(2, 2);
+        Display_setCursor(26, 48);
+        Display_setTextColor(ST7735_RED);
+        Display_print("GAME OVER");
+        return;
+    }
+
+    Display_fillScreen(ST7735_WHITE);
+    char levelString[32];
+    snprintf(levelString, sizeof(levelString), "Level: %u / %u", CURRENT_LEVEL, MAX_SEQ);
+    Display_setTextColor(ST7735_BLACK);
+    Display_setTextSize(1, 1);
+    Display_setCursor(8, 5);
+    Display_print(levelString);
+
+    if (levelSuccess) {
+        Display_setCursor(32, 48);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("GOOD JOB!");
+    }
+    
+    // Drawing buttons, looping to make it easy
+    for(uint8_t index = 0; index < 4; index++){
+        if(buttonPressed[index]){
+            Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, brightColors[index]);
+        } else {
+            Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, dimColors[index]);
+        }
+    }
+    
+    Display_setTextColor(ST7735_BLACK);
+    Display_setCursor(8, 115);
+    Display_print("Last 5:");
+
+    uint8_t start = (CURRENT_INPUT > 5) ? CURRENT_INPUT - 5 : 0;
+
+    for (uint8_t i = start; i < CURRENT_INPUT; i++) {
+        Display_fillCircle( 66 + i * 17, 118, 5,brightColors[USER_SEQUENCE[i]]);
+    }
+    
+}
+
 void Simon_State_Machine(void){
     dbgMarker = 0xCAFE;
     if (!gpioReady) {
@@ -242,6 +332,7 @@ void Simon_State_Machine(void){
                 DWT_delayMs(SEQ_TIME); //keep it lit
                 lightPad(CURRENT_COLOR, false); //led off
                 stop_note(); //note off
+                In_Game_Display();
                 DWT_delayMs(SEQ_TIME / 2); //short gap before the next color
 
                 PLAYBACK_INDEX++;
@@ -335,5 +426,4 @@ void Simon_State_Machine(void){
             break;
     }
     In_Game_Display();
-
 }
