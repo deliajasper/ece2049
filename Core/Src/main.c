@@ -91,6 +91,7 @@ static void MX_TIM1_Init(void);
 
 /* USER CODE BEGIN PFP */
 void Simon_State_Machine(void);
+void Game_GPIO_Init(void);
 
 /* USER CODE END PFP */
 
@@ -138,7 +139,8 @@ int main(void)
   MX_RNG_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
+  // initializes necessary simon gpio pins
+  Game_GPIO_Init();
   /* USER CODE END 2 */
 
   /* Initialize leds */
@@ -182,7 +184,8 @@ int main(void)
   Display_init(INITR_BLACKTAB);
   DWT_delayMs(100);
   Display_setRotation(1);
-  Display_fillScreen(ST77XX_WHITE);
+  //Display_fillScreen(ST77XX_WHITE);
+  Display_fillScreen(ST77XX_BLUE);
   TFTShield18_setBacklight(TFTSHIELD_BACKLIGHT_ON);
 
   /* Place extra user setup code here */
@@ -201,6 +204,7 @@ int main(void)
   while (1)
   {
     /* Place application loop code here */
+      // calls simon state machine function
       Simon_State_Machine();
 
       /*

@@ -34,16 +34,16 @@
 #define LED_GREEN_PORT GPIOC
 
 // BUTTONS: PB12, PB2, PB15, PB14
-#define BUTTON_YELLOW_PIN GPIO_PIN_12 //8th from top on right col of CN10
-#define BUTTON_YELLOW_PORT GPIOB
+#define BUTTON_YELLOW_PIN GPIO_PIN_3 //8th from top on right col of CN10
+#define BUTTON_YELLOW_PORT GPIOC
 
-#define BUTTON_BLUE_PIN GPIO_PIN_2 //3 down from PB12
-#define BUTTON_BLUE_PORT GPIOB
+#define BUTTON_BLUE_PIN GPIO_PIN_5 //3 down from PB12
+#define BUTTON_BLUE_PORT GPIOC
 
-#define BUTTON_RED_PIN GPIO_PIN_15 //2 down from PB2
-#define BUTTON_RED_PORT GPIOB
+#define BUTTON_RED_PIN GPIO_PIN_11 //2 down from PB2
+#define BUTTON_RED_PORT GPIOC
 
-#define BUTTON_GREEN_PIN GPIO_PIN_14 //1 down from PB15
+#define BUTTON_GREEN_PIN GPIO_PIN_8 //1 down from PB15
 #define BUTTON_GREEN_PORT GPIOB
 
 // BUZZER: PE9
@@ -63,12 +63,12 @@ typedef enum{
 static State_t currentState = IDLE;
 
 static bool levelSuccess = false; // Track if the player has successfully completed the current level
-static bool gameLost = false; // Track if the player has lost the game
-static bool gameWon = false; // Track if the player has won the game
+//static bool gameLost = false; // Track if the player has lost the game
+//static bool gameWon = false; // Track if the player has won the game
 
 // TODO: assign order of colors
 static bool buttonPressed[4] = {false, false, false, false}; // Track button presses for each color  
-static bool updateDisplay = false; // Flag to indicate if the display needs to be updated
+static bool updateDisplay = true; // Flag to indicate if the display needs to be updated
 
 // TODO: Other variables needed may include a sequence array, a player input array, variables to keep track of the current level or sequence length,
 // booleans to track if the sequence was correctly enetered, a number for how many levels there are, a varaibles for what level the player is on, etc.
@@ -192,8 +192,9 @@ void Game_GPIO_Init() {
         uint32_t btnN = PIN_NUM(BUTTON_PINS[i]);
         BUTTON_PORTS[i]->MODER &= ~MODER_MASK(btnN); // clear field -> 00 = input
         BUTTON_PORTS[i]->PUPDR &= ~PUPDR_MASK(btnN); // clear pull field
-        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(btnN); // set 10 = pull-down
+        BUTTON_PORTS[i]->PUPDR |= PUPDR_PU(btnN); // set 10 = pull-down 
     }
+    
 }
 
 
@@ -203,39 +204,64 @@ void Game_GPIO_Init() {
 // TODO: Other methods needed include countdown timers (maybe), sequence playback, player input reading, and input checking
 
 // Constants for GUI, tune when display is on
-static const uint16_t brightColors[4] = {0x07E0, 0xF800, 0xFFE0, 0x001F};
-static const uint16_t dimColors[4] = {0x0200, 0x5000, 0x5280, 0x000A};
+static const uint16_t brightColors[4] = {
+    0xFFE0, // Yellow
+    0x001F, // Blue
+    0xF800, // Red
+    0x07E0  // Green
+};
+static const uint16_t dimColors[4] = {
+    0x5280, // Yellow
+    0x000A, // Blue
+    0x5000, // Red
+    0x0200  // Green
+};
 static const int16_t xPos[4] = {20, 86, 20, 86};
 static const int16_t yPos[4] = {22, 22, 66, 66};
 
 void In_Game_Display(void){ 
     // Avoid redrawing the display if nothing needs to be updated
+    static State_t previousState = GAME_LOSE;
+    bool previousSuccess = false;
+
+    char number[8]; // char to hold the countdown number as a string
+
     if(!updateDisplay){
         return;
     }
     updateDisplay = false; // Reset the flag after updating the display
-
+    if (currentState != previousState || levelSuccess != previousSuccess) {
+        Display_fillScreen(ST7735_WHITE);
+        previousState = currentState;
+    }
+    if (levelSuccess) {
+        Display_setTextSize(2, 2);
+        Display_setCursor(32, 48);
+        Display_setTextColor(ST7735_GREEN);
+        Display_print("GOOD JOB!");
+        return;
+    }
+    
     Display_setTextSize(1, 1);
     Display_setTextColor(ST7735_BLACK);
 
     if (currentState == IDLE) {
         Display_setCursor(24, 35);
-        Display_print("SIMON GAME");
+        Display_print("Simon Says Game");
         Display_setTextSize(1, 1);
         Display_setCursor(24, 76);
         Display_print("Press SELECT to start");
         return;
     }
-    if (currentState == COUNTDOWN) {
-        char number[8]; // char to hold the countdown number as a string
+    /*if (currentState == COUNTDOWN) {
+        
         // calculate how much time has passed
         // print the number
         Display_setCursor(24, 48);
         Display_print("Get ready to start in:");
         Display_setCursor(24, 64);
-        //Display_print(number);
         return;
-    }
+    }*/
     if (currentState == GAME_WIN) {
         Display_setTextSize(2, 2);
         Display_setCursor(32, 48);
@@ -251,7 +277,6 @@ void In_Game_Display(void){
         return;
     }
 
-    Display_fillScreen(ST7735_WHITE);
     char levelString[32];
     snprintf(levelString, sizeof(levelString), "Level: %u / %u", CURRENT_LEVEL, MAX_SEQ);
     Display_setTextColor(ST7735_BLACK);
@@ -259,20 +284,24 @@ void In_Game_Display(void){
     Display_setCursor(8, 5);
     Display_print(levelString);
 
-    if (levelSuccess) {
-        Display_setCursor(32, 48);
-        Display_setTextColor(ST7735_GREEN);
-        Display_print("GOOD JOB!");
-    }
-    
     // Drawing buttons, looping to make it easy
-    for(uint8_t index = 0; index < 4; index++){
+    /*for(uint8_t index = 0; index < 4; index++){
         if(buttonPressed[index]){
             Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, brightColors[index]);
         } else {
             Display_fillRoundRect(xPos[index], yPos[index], 54, 39, 6, dimColors[index]);
         }
-    }
+    }*/
+    for (uint8_t i = 0; i < 4; i++) {
+    Display_fillRoundRect(
+        xPos[i],
+        yPos[i],
+        54,
+        39,
+        6,
+        buttonPressed[i] ? brightColors[i] : dimColors[i]
+    );
+}
     
     Display_setTextColor(ST7735_BLACK);
     Display_setCursor(8, 115);
@@ -281,56 +310,47 @@ void In_Game_Display(void){
     uint8_t start = (CURRENT_INPUT > 5) ? CURRENT_INPUT - 5 : 0;
 
     for (uint8_t i = start; i < CURRENT_INPUT; i++) {
-        Display_fillCircle( 66 + i * 17, 118, 5,brightColors[USER_SEQUENCE[i]]);
+        Display_fillCircle( 66 + (i-start) * 17, 118, 5,brightColors[USER_SEQUENCE[i]]);
     }
     
 }
 
 void Simon_State_Machine(void){
-    dbgMarker = 0xCAFE;
-    if (!gpioReady) {
+    //dbgMarker = 0xCAFE;
+    uint32_t startgame;
+    int i;
+
+    /*if (!gpioReady) {
         Game_GPIO_Init();
         gpioReady = true;            
-    }
-
+    }*/
     switch(currentState){
         case IDLE: // Isaac
-            // Wait for user input to start the game
-            Display_setTextSize(1, 1);
-            Display_setTextColor(ST7735_BLACK);
-            Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 - 5);
-            Display_print("Welcome to the Simon Says Game!");
-            Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 + 10);
-            Display_print("Press 'Select' to begin"); // I dont actually know what the select button is so I just said if any button on the Adafruit is pressed the game starts
-            uint32_t startgame = TFTShield18_readButtons();  
-            if((startgame & TFTSHIELD_BUTTON_ALL) != TFTSHIELD_BUTTON_ALL){ // this does not check for button release so do not hold the button down because I am not sure what that will do
-                DWT_delayMs(200); // wait 200 milliseconds to prepare player for countdown
-                lightPad(0, false); // turn off all LEDs? please confirm if this does that
+
+            startgame = TFTShield18_readButtons(); 
+
+            if(!(startgame & TFTSHIELD_BUTTON_IN)){ 
+                HAL_Delay(200); // wait 200 milliseconds to prepare player for countdown
+                lightPad(0, false);
                 lightPad(1, false);
                 lightPad(2, false);
                 lightPad(3, false);
                 currentState = COUNTDOWN;
             }
             break;
-        
+    
 
         case COUNTDOWN: // Isaac
-            // Perform countdown logic here
-            // TODO: Display countdown on the screen
-            // TODO: Transition to PLAY_SEQUENCE after countdown
-            Display_fillScreen(ST77XX_WHITE); //clears screen left over from IDLE
-            int i;
             for(i = 3; i >= 1; i--){ // this should count down the numbers
-                int placeHolder = i;
-                char text[2];
-                sprintf(text, "%d", placeHolder); // convert placeHolder to something that Display_print can read
-
-                Display_setTextSize(40, 1);
+                char seconds_string[2];
+                sprintf(seconds_string, "%d", i); // convert current number to something that Display_print can read
+                
+                Display_setTextSize(4, 4);
+                Display_setCursor(68, 48);
                 Display_setTextColor(ST7735_BLACK);
-                Display_setCursor(Display_width() / 2 - 58, Display_height() / 2 - 5);
-                Display_print(text);
-                DWT_delayMs(1000); // wait 1000 milliseconds, 1 second
-                Display_fillScreen(ST77XX_WHITE); // clears screen
+                Display_print(seconds_string);
+                HAL_Delay(1000); // wait 1000 milliseconds, 1 second
+                Display_fillRect(60, 40, 40, 50, ST7735_WHITE);
             }
             CURRENT_LEVEL = 0; // reset the level so it starts from 0
             addToSequence(); //add first color to sequence
@@ -341,10 +361,6 @@ void Simon_State_Machine(void){
 
         case PLAY_SEQUENCE: // Tran
             // Play the sequence of notes
-            // TODO: Implement method(s) to play the sequence on the LEDs, one LED at a time, 
-            // and play a unique note on the buzzer for each LED
-            // TODO: Transition to PLAYER_INPUT after sequence is finished
-            // TODO: Implement In_Game_Display() to show the current sequence on the screen
 
             if (FIRST_LOOP) { //first pass in seq -- set up playback
                 PLAYBACK_INDEX = 0; // first btn in playback sequence
@@ -356,11 +372,12 @@ void Simon_State_Machine(void){
 
                 lightPad(CURRENT_COLOR, true); //led on
                 play_note(CURRENT_COLOR); //note on
-                DWT_delayMs(SEQ_TIME); //keep it lit
+                In_Game_Display();
+                HAL_Delay(SEQ_TIME); //keep it lit
                 lightPad(CURRENT_COLOR, false); //led off
                 stop_note(); //note off
                 In_Game_Display();
-                DWT_delayMs(SEQ_TIME / 2); //short gap before the next color
+                HAL_Delay(SEQ_TIME / 2); //short gap before the next color
 
                 PLAYBACK_INDEX++;
             } else { //done with sequence
@@ -376,7 +393,6 @@ void Simon_State_Machine(void){
             // TODO: Transition back to PLAY_SEQUENCE if the player input is correct AND the game is not over
             // transition to GAME_LOSE if the player input is incorrect, or transition to GAME_WIN if the 
             // player has completed all sequences correctly
-            // TODO: Implement In_Game_Display() to show the current sequence on the screen
 
             if (FIRST_LOOP) { //first pass in player input -- set up input
                 CURRENT_INPUT = 0; // first btn in player input sequence
@@ -396,38 +412,48 @@ void Simon_State_Machine(void){
                     play_note(LAST_BTN); //note on
                 }
             } else if (WAIT_FOR_RELEASE) { //btn was just released
+                WAIT_FOR_RELEASE = false; //no longer waiting for release
                 uint8_t releasedBtn = LAST_BTN; //btn that was just released
                 LAST_BTN = NOT_PRESSED; //reset last btn
-                WAIT_FOR_RELEASE = false; //no longer waiting for release
 
                 lightPad(releasedBtn, false); //led off
                 stop_note(); //note off
-                DWT_delayMs(DEBOUNCE_TIME); //debounce delay
+                HAL_Delay(DEBOUNCE_TIME); //debounce delay
 
                 //check btn
                 if (releasedBtn != COLOR_SEQUENCE[CURRENT_INPUT]) { //wrong btn
                     FIRST_LOOP = true; //reset for next time
                     currentState = GAME_LOSE; //lose game... whomp whomp
+                    updateDisplay = true;
                 } else { //right btn, yay!
                     USER_SEQUENCE[CURRENT_INPUT] = releasedBtn; //store btn in user sequence
                     CURRENT_INPUT++; //next btn in user input sequence
-
+                    updateDisplay = true;
                     //if user entered all the correct btns for the current level
                     if (CURRENT_INPUT == CURRENT_LENGTH) { //finished current user's seq
-                        if (CURRENT_LENGTH < CURRENT_LEVEL) { // lvl not done, show more colors
+                            levelSuccess = true;
+                            updateDisplay = true;
+                            In_Game_Display();
+                            HAL_Delay(SUCCESS_TIME);
+
+                            levelSuccess = false;
+                        /*if (CURRENT_LENGTH < CURRENT_LEVEL) { // lvl not done, show more colors
                             CURRENT_LENGTH++; //next round of current lvl's sequence
                             FIRST_LOOP = true; //reset for next round in same level
                             currentState = PLAY_SEQUENCE; //replay lvl with one more color
-                        } else if (CURRENT_LEVEL >= MAX_SEQ) { //finished the last color of the last level
-                            FIRST_LOOP = true; //reset for next time user plays
+                        } else*/ if (CURRENT_LEVEL >= MAX_SEQ) { //finished the last color of the last level
+                            //FIRST_LOOP = true; //reset for next time user plays
                             currentState = GAME_WIN; //win game, yay!
                         } else { //finish current level, move on to next
-                            DWT_delayMs(SUCCESS_TIME); //wait a bit before next level
                             addToSequence(); //add new color and level++
-                            CURRENT_LENGTH = 1; //next level starts back at 1 color
-                            FIRST_LOOP = true; //reset
+                            HAL_Delay(SUCCESS_TIME); //wait a bit before next level
+                            //CURRENT_LENGTH =1;
+                            CURRENT_LENGTH = CURRENT_LEVEL; //next level starts back at 1 color
+                           // FIRST_LOOP = true; //reset
                             currentState = PLAY_SEQUENCE; //play next level
                         }
+                        FIRST_LOOP = true;
+                        updateDisplay = true;  
                     }
                 }
             }
@@ -438,14 +464,24 @@ void Simon_State_Machine(void){
             // Handle game win logic
             // TODO: Add win message to screen
             // TODO: Transition to IDLE after length of time has passed
+            updateDisplay = true;
+            In_Game_Display();
+
+            HAL_Delay(SUCCESS_TIME);
             currentState = IDLE;
+            updateDisplay = true;
             break;
 
         case GAME_LOSE: // Isaac
             // Handle game lose logic
             // TODO: Add lose message to screen with "annoying" buzzer sound
             // TODO: Transition to IDLE after length of time has passed
+            updateDisplay = true;
+            In_Game_Display();
+
+            HAL_Delay(SUCCESS_TIME);
             currentState = IDLE;
+            updateDisplay = true;
             break;
 
         default:
