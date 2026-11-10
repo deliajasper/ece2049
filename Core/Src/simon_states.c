@@ -48,8 +48,6 @@
 #define BUZZER_PIN GPIO_PIN_9
 #define BUZZER_PORT GPIOE
 
-volatile uint32_t dbgMarker = 0xBEEF;
-
 // Define the states of the Simon game
 typedef enum{
     IDLE,
@@ -196,33 +194,13 @@ void Game_GPIO_Init() {
     }
 }
 
-volatile uint32_t dbgIdrB;
-volatile uint8_t dbgPressed[NUM_BTNS];
-
 void Simon_State_Machine(void){
     dbgMarker = 0xCAFE;
     if (!gpioReady) {
         Game_GPIO_Init();
-        gpioReady = true;
-
-        // LED test: flash each LED once at startup
-        
-        for (uint8_t i = 0; i < NUM_BTNS; i++) {
-            lightPad(i, true);
-            DWT_delayMs(300);
-            lightPad(i, false);
-        }
-            
+        gpioReady = true;            
     }
 
-    // Button test using readButton()
-    uint8_t btn = readButton();
-    dbgIdrB = btn;
-    for (uint8_t i = 0; i < NUM_BTNS; i++) {
-        lightPad(i, btn == i);
-    }
-
-    /*
     switch(currentState){
         case IDLE: // Isaac
             // Wait for user input to start the game
@@ -357,5 +335,5 @@ void Simon_State_Machine(void){
             break;
     }
     In_Game_Display();
-    */
+
 }
