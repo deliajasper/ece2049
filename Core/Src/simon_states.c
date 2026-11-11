@@ -320,7 +320,7 @@ void In_Game_Display(void){
     if (levelSuccess) {
         Display_setTextSize(2, 2);
         Display_setCursor(32, 48);
-        Display_setTextColor(ST7735_GREEN);
+        Display_setTextColor(tft.color565(31, 178, 56)); // darker green color
         Display_print("GOOD JOB!");
         return;
     }
@@ -339,7 +339,8 @@ void In_Game_Display(void){
     if (currentState == GAME_WIN) {
         Display_setTextSize(2, 2);
         Display_setCursor(32, 48);
-        Display_setTextColor(ST7735_GREEN);
+        //Display_setTextColor(ST7735_GREEN);
+        Display_setTextColor(tft.color565(31, 178, 56)); // darker green color
         Display_print("YOU WIN!");
         return;
     }
