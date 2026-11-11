@@ -68,7 +68,7 @@ static bool updateDisplay = true;
 static bool buttonPressed[4] = {false, false, false, false}; // Track button presses for each color  
 #define NUM_BTNS 4 
 
-#define MAX_SEQ 32 //maximum 32 flashes per level, we can have 32 levels so it increases by 1 each time
+#define MAX_SEQ 5 //maximum 32 flashes per level, we can have 32 levels so it increases by 1 each time
 #define NOT_PRESSED 255 //no btn pressed
 
 // need a sequence for game, sequence for user inupt, current level, current user input, current color, last button pressed
@@ -170,6 +170,71 @@ uint8_t readButton() {
         }
     }
     return butt;
+}
+
+void In_Game_Display(void); // forward dec for the display function
+
+//checks if the select button has been pressed
+static bool checkSelectPress(void) {
+    if (currentState == IDLE) {
+        return false;
+    }
+    if (TFTShield18_readButtons() & TFTSHIELD_BUTTON_IN) {
+        return false;
+    } // not pressed
+
+    for (uint8_t i = 0; i < NUM_BTNS; i++) {
+        lightPad(i, false);
+    }
+    stop_note();
+
+    levelSuccess = false;
+    FIRST_LOOP = true;
+    WAIT_FOR_RELEASE = false;
+    LAST_BTN = NOT_PRESSED;
+    CURRENT_LEVEL = 0;
+    CURRENT_LENGTH = 0;
+    CURRENT_INPUT = 0;
+    HISTORY_COUNTER = 0;
+
+    currentState = IDLE;
+    updateDisplay = true;
+
+    while (!(TFTShield18_readButtons() & TFTSHIELD_BUTTON_IN)) HAL_Delay(10);  // wait for release
+    HAL_Delay(DEBOUNCE_TIME);
+
+    In_Game_Display();   // redraw the welcome screen
+    return true;
+}
+
+// like the HAL_Delay, but returns it true if SELECT interrupted it (already reset)
+static bool waitMs(uint32_t ms) {
+    uint32_t start = HAL_GetTick();
+    while (HAL_GetTick() - start < ms) {
+        if (checkSelectPress()) return true;
+    }
+    return false;
+}
+
+// random flashes for game over scene
+static bool randomFlashes(uint32_t durationMs) {
+    uint32_t start = HAL_GetTick();
+    while (HAL_GetTick() - start < durationMs) {
+        uint32_t randomNum = 0;
+        HAL_RNG_GenerateRandomNumber(&hrng, &randomNum);
+        uint8_t color = randomNum % NUM_BTNS;   // 0-3
+
+        lightPad(color, true); //led on
+        play_note(color); //matching buzzer sound
+        HAL_Delay(100); //keep it lit for a bit
+        lightPad(color, false); //led off
+        stop_note(); //buzzer off
+        //HAL_Delay(50); //pause before the next one
+        if (waitMs(50)) {
+            return true;
+        } // wait 50ms, but return if SELECT pressed
+    }
+    return false;
 }
 
 // Initalizes all GPIO pins
@@ -315,6 +380,11 @@ void In_Game_Display(void){
 void Simon_State_Machine(void){
     // trigger for game to start
     uint32_t startgame;
+
+    if (checkSelectPress()) {
+        return;
+    }
+
     // STATE SWITCH STATEMENT
     switch(currentState){
         case IDLE: 
@@ -341,7 +411,10 @@ void Simon_State_Machine(void){
                 Display_setTextColor(ST7735_BLACK);
                 Display_fillRect(60, 40, 40, 50, ST7735_WHITE);
                 Display_print(seconds_string);
-                HAL_Delay(1000); // wait 1000 milliseconds, 1 second    
+                //HAL_Delay(1000); // wait 1000 milliseconds, 1 second    
+                if (waitMs(1000)) {
+                    return;
+                }
             }
             CURRENT_LEVEL = 0; // reset the level so it starts from 0
             addToSequence(); //add first color to sequence
@@ -363,11 +436,17 @@ void Simon_State_Machine(void){
                 lightPad(CURRENT_COLOR, true); //led on
                 play_note(CURRENT_COLOR); //note on
                 In_Game_Display();
-                HAL_Delay(SEQ_TIME); //keep it lit
+                //HAL_Delay(SEQ_TIME); //keep it lit
+                if (waitMs(SEQ_TIME)) {
+                    return;
+                }
                 lightPad(CURRENT_COLOR, false); //led off
                 stop_note(); //note off
                 In_Game_Display();
-                HAL_Delay(SEQ_TIME / 2); //short gap before the next color
+                //HAL_Delay(SEQ_TIME / 2); //short gap before the next color
+                if (waitMs(SEQ_TIME/2)) {
+                    return;
+                }
                 PLAYBACK_INDEX++;
             } 
             else { //done with sequence
@@ -420,14 +499,20 @@ void Simon_State_Machine(void){
                             levelSuccess = true;
                             updateDisplay = true;
                             In_Game_Display();
-                            HAL_Delay(SUCCESS_TIME);
+                            //HAL_Delay(SUCCESS_TIME);
+                            if (waitMs(SUCCESS_TIME)) {
+                                return;
+                            }
 
                             levelSuccess = false;
                         if (CURRENT_LEVEL >= MAX_SEQ) { //finished the last color of the last level
                             currentState = GAME_WIN; //win game, yay!
                         } else { //finish current level, move on to next
                             addToSequence(); //add new color and level++
-                            HAL_Delay(SUCCESS_TIME); //wait a bit before next level
+                            //HAL_Delay(SUCCESS_TIME); //wait a bit before next level
+                            if (waitMs(SUCCESS_TIME)) {
+                                return;
+                            }
                             CURRENT_LENGTH = CURRENT_LEVEL; // update length of sequence
                             currentState = PLAY_SEQUENCE; //play next level
                         }
@@ -443,7 +528,10 @@ void Simon_State_Machine(void){
             updateDisplay = true;
             In_Game_Display();
             // returns to IDLE after a delay
-            HAL_Delay(SUCCESS_TIME);
+            //HAL_Delay(SUCCESS_TIME);
+            if (waitMs(SUCCESS_TIME)) {
+                return;
+            }
             currentState = IDLE;
             updateDisplay = true;
             break;
@@ -452,8 +540,14 @@ void Simon_State_Machine(void){
             // updates the display with game over message
             updateDisplay = true;
             In_Game_Display();
+            if (randomFlashes(1000)) { //random flashes for 2 seconds
+                return;
+            }
             // returns to IDLE after a delay
-            HAL_Delay(SUCCESS_TIME);
+            //HAL_Delay(SUCCESS_TIME);
+            if (waitMs(SUCCESS_TIME)) {
+                return;
+            }
             currentState = IDLE;
             updateDisplay = true;
             break;
