@@ -44,9 +44,9 @@
 #define BUTTON_GREEN_PIN GPIO_PIN_8 
 #define BUTTON_GREEN_PORT GPIOB
 
-// BUZZER: PE9
-#define BUZZER_PIN GPIO_PIN_9
-#define BUZZER_PORT GPIOE
+// BUZZER: PA8
+#define BUZZER_PIN GPIO_PIN_8
+#define BUZZER_PORT GPIOA
 
 // Define the states of the Simon game
 typedef enum{
