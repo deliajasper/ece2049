@@ -332,7 +332,7 @@ void Simon_State_Machine(void){
             break;
 
         case COUNTDOWN: 
-            for(i = 3; i >= 1; i--){ // counts down numbers for a 3 second timer
+            for(uint8_t i = 3; i >= 1; i--){ // counts down numbers for a 3 second timer
                 char seconds_string[2];
                 sprintf(seconds_string, "%d", i); // converts current number to a string that Display_print can read
                 // displays the number on screen every second
