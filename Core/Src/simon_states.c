@@ -304,27 +304,23 @@ void In_Game_Display(void){
     Display_setTextColor(ST7735_BLACK);
     Display_setCursor(8, 115);
     Display_print("Last 5:");
-
+    // loops through drawing each button color to avoid redundant code
     for (uint8_t i = 0; i < HISTORY_COUNTER; i++) {
         Display_fillCircle( 66 + i * 17, 118, 5,brightColors[BUTTON_HISTORY[i]]);
     }
     
 }
 
+// ENTIRE FINITE STATE MACHINE
 void Simon_State_Machine(void){
-    //dbgMarker = 0xCAFE;
+    // trigger for game to start
     uint32_t startgame;
-    int i;
-
-    /*if (!gpioReady) {
-        Game_GPIO_Init();
-        gpioReady = true;            
-    }*/
+    // STATE SWITCH STATEMENT
     switch(currentState){
-        case IDLE: // Isaac
-
+        case IDLE: 
+            // listne for SELECT button
             startgame = TFTShield18_readButtons(); 
-
+            // if the game is starting, turn everythin off and transition after a delay
             if(!(startgame & TFTSHIELD_BUTTON_IN)){ 
                 HAL_Delay(200); // wait 200 milliseconds to prepare player for countdown
                 lightPad(0, false);
@@ -334,21 +330,18 @@ void Simon_State_Machine(void){
                 currentState = COUNTDOWN;
             }
             break;
-    
 
-        case COUNTDOWN: // Isaac
-            for(i = 3; i >= 1; i--){ // this should count down the numbers
+        case COUNTDOWN: 
+            for(i = 3; i >= 1; i--){ // counts down numbers for a 3 second timer
                 char seconds_string[2];
-                sprintf(seconds_string, "%d", i); // convert current number to something that Display_print can read
-                
+                sprintf(seconds_string, "%d", i); // converts current number to a string that Display_print can read
+                // displays the number on screen every second
                 Display_setTextSize(4, 4);
                 Display_setCursor(68, 48);
                 Display_setTextColor(ST7735_BLACK);
-                
                 Display_fillRect(60, 40, 40, 50, ST7735_WHITE);
                 Display_print(seconds_string);
-                HAL_Delay(1000); // wait 1000 milliseconds, 1 second
-                
+                HAL_Delay(1000); // wait 1000 milliseconds, 1 second    
             }
             CURRENT_LEVEL = 0; // reset the level so it starts from 0
             addToSequence(); //add first color to sequence
@@ -358,17 +351,15 @@ void Simon_State_Machine(void){
             currentState = PLAY_SEQUENCE;
             break;
 
-        case PLAY_SEQUENCE: // Tran
+        case PLAY_SEQUENCE: 
             // Play the sequence of notes
-
-            if (FIRST_LOOP) { //first pass in seq -- set up playback
+            if (FIRST_LOOP) { // first pass in seq -- set up playback
                 PLAYBACK_INDEX = 0; // first btn in playback sequence
                 FIRST_LOOP = false;
             }
-
             if (PLAYBACK_INDEX < CURRENT_LENGTH) { //still more colors to play
                 CURRENT_COLOR = COLOR_SEQUENCE[PLAYBACK_INDEX];
-
+                // LED logic
                 lightPad(CURRENT_COLOR, true); //led on
                 play_note(CURRENT_COLOR); //note on
                 In_Game_Display();
@@ -377,29 +368,22 @@ void Simon_State_Machine(void){
                 stop_note(); //note off
                 In_Game_Display();
                 HAL_Delay(SEQ_TIME / 2); //short gap before the next color
-
                 PLAYBACK_INDEX++;
-            } else { //done with sequence
+            } 
+            else { //done with sequence
                 FIRST_LOOP = true; //reset for next time
                 currentState = PLAYER_INPUT; //wait for player input now
             }
-
             break;
 
-        case PLAYER_INPUT: { // Tran
-            // Wait for player input and check against the sequence
-            // TODO: Implement method(s) to read player input from the buttons and compare it to the sequence
-            // TODO: Transition back to PLAY_SEQUENCE if the player input is correct AND the game is not over
-            // transition to GAME_LOSE if the player input is incorrect, or transition to GAME_WIN if the 
-            // player has completed all sequences correctly
-
+        case PLAYER_INPUT: { 
             if (FIRST_LOOP) { //first pass in player input -- set up input
                 CURRENT_INPUT = 0; // first btn in player input sequence
                 FIRST_LOOP = false;
                 LAST_BTN = NOT_PRESSED;
                 WAIT_FOR_RELEASE = (readButton() != NOT_PRESSED); //waits for release if a button is already pressed
             }
-
+            // current button pressed
             uint8_t btnPressed = readButton();
 
             if (btnPressed != NOT_PRESSED) { //a button is pressed
@@ -422,7 +406,6 @@ void Simon_State_Machine(void){
                 if (releasedBtn != NOT_PRESSED) {
                     addToHistory(releasedBtn);
                 }
-
                 //check btn
                 if (releasedBtn != COLOR_SEQUENCE[CURRENT_INPUT]) { //wrong btn
                     FIRST_LOOP = true; //reset for next time
@@ -440,19 +423,12 @@ void Simon_State_Machine(void){
                             HAL_Delay(SUCCESS_TIME);
 
                             levelSuccess = false;
-                        /*if (CURRENT_LENGTH < CURRENT_LEVEL) { // lvl not done, show more colors
-                            CURRENT_LENGTH++; //next round of current lvl's sequence
-                            FIRST_LOOP = true; //reset for next round in same level
-                            currentState = PLAY_SEQUENCE; //replay lvl with one more color
-                        } else*/ if (CURRENT_LEVEL >= MAX_SEQ) { //finished the last color of the last level
-                            //FIRST_LOOP = true; //reset for next time user plays
+                        if (CURRENT_LEVEL >= MAX_SEQ) { //finished the last color of the last level
                             currentState = GAME_WIN; //win game, yay!
                         } else { //finish current level, move on to next
                             addToSequence(); //add new color and level++
                             HAL_Delay(SUCCESS_TIME); //wait a bit before next level
-                            //CURRENT_LENGTH =1;
-                            CURRENT_LENGTH = CURRENT_LEVEL; //next level starts back at 1 color
-                           // FIRST_LOOP = true; //reset
+                            CURRENT_LENGTH = CURRENT_LEVEL; // update length of sequence
                             currentState = PLAY_SEQUENCE; //play next level
                         }
                         FIRST_LOOP = true;
@@ -460,36 +436,32 @@ void Simon_State_Machine(void){
                     }
                 }
             }
-
             break;
         }
-        case GAME_WIN: // Isaac
-            // Handle game win logic
-            // TODO: Add win message to screen
-            // TODO: Transition to IDLE after length of time has passed
+        case GAME_WIN: 
+            // updates display with win message
             updateDisplay = true;
             In_Game_Display();
-
+            // returns to IDLE after a delay
             HAL_Delay(SUCCESS_TIME);
             currentState = IDLE;
             updateDisplay = true;
             break;
 
-        case GAME_LOSE: // Isaac
-            // Handle game lose logic
-            // TODO: Add lose message to screen with "annoying" buzzer sound
-            // TODO: Transition to IDLE after length of time has passed
+        case GAME_LOSE: 
+            // updates the display with game over message
             updateDisplay = true;
             In_Game_Display();
-
+            // returns to IDLE after a delay
             HAL_Delay(SUCCESS_TIME);
             currentState = IDLE;
             updateDisplay = true;
             break;
 
-        default:
+        default: // default catchall
             currentState = IDLE;
             break;
     }
+    // update display every state machine cycle
     In_Game_Display();
 }
